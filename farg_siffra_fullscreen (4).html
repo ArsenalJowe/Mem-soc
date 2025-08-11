@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Färg & Siffra Växlare – Fullscreen Version</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #222; color: #fff; }
+  .controls { padding: 10px; background: #f0f0f0; color: #000; display: flex; flex-wrap: wrap; gap: 10px; }
+  .controls > div { flex: 1 1 200px; }
+  label { display: block; margin-top: 5px; }
+  input, select { width: 100%; padding: 4px; }
+  button { padding: 8px 12px; margin-top: 8px; font-size: 14px; cursor: pointer; }
+  #fullscreenDisplay {
+    display: none;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    font-weight: bold;
+    text-align: center;
+  }
+  #fullscreenNumber {
+    font-size: 80vmin;
+    line-height: 1;
+    word-break: break-word;
+  }
+</style>
+</head>
+<body>
+
+<div class="controls" id="settingsPanel">
+  <div>
+    <label>Antal färger (1–7)</label>
+    <input id="colorCount" type="number" min="1" max="7" value="3" />
+    <div id="colorPickers"></div>
+  </div>
+  <div>
+    <label>Hur många siffror (1–100)</label>
+    <input id="numberCount" type="number" min="1" max="100" value="12" />
+    <label>Interval i sekunder</label>
+    <input id="intervalSec" type="number" min="0.05" step="0.05" value="3" />
+    <label>Sekvensläge</label>
+    <select id="mode">
+      <option value="sequential">Sekventiell (1 → N)</option>
+      <option value="random">Slumpmässig</option>
+    </select>
+    <button id="startBtn" style="background:#2979ff; color:white;">Start i Helskärm</button>
+  </div>
+</div>
+
+<div id="fullscreenDisplay">
+  <div id="fullscreenNumber"></div>
+</div>
+
+<script>
+const colorCountInput = document.getElementById('colorCount');
+const colorPickersDiv = document.getElementById('colorPickers');
+const numberCountInput = document.getElementById('numberCount');
+const intervalSecInput = document.getElementById('intervalSec');
+const modeSelect = document.getElementById('mode');
+const startBtn = document.getElementById('startBtn');
+
+const fullscreenDisplay = document.getElementById('fullscreenDisplay');
+const fullscreenNumber = document.getElementById('fullscreenNumber');
+
+const MAX_COLORS = 7;
+const colorInputs = [];
+
+function makeColorPickers() {
+  colorPickersDiv.innerHTML = '';
+  const defaults = ['#ff4d4d','#2979ff','#4caf50','#ffd54f','#9c27b0','#ff9800','#00bcd4'];
+  for (let i=0;i<MAX_COLORS;i++) {
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = defaults[i] || '#cccccc';
+    input.style.width = '40px';
+    input.style.height = '40px';
+    input.style.margin = '2px';
+    colorPickersDiv.appendChild(input);
+    colorInputs.push(input);
+  }
+  updateVisiblePickers();
+}
+function updateVisiblePickers(){
+  let count = parseInt(colorCountInput.value,10) || 1;
+  if (count < 1) count = 1;
+  if (count > MAX_COLORS) count = MAX_COLORS;
+  colorInputs.forEach((inp, idx) => {
+    inp.style.display = idx < count ? 'inline-block' : 'none';
+  });
+}
+colorCountInput.addEventListener('input', updateVisiblePickers);
+makeColorPickers();
+
+function getActiveColors() {
+  const cnt = Math.min(MAX_COLORS, Math.max(1, parseInt(colorCountInput.value) || 1));
+  return colorInputs.slice(0,cnt).map(i=>i.value);
+}
+function getNumbersArray() {
+  const n = Math.min(100, Math.max(1, parseInt(numberCountInput.value) || 1));
+  const arr = [];
+  for (let i=1;i<=n;i++) arr.push(i);
+  return arr;
+}
+function getContrastYIQ(hexcolor){
+  const c = hexcolor.replace('#','');
+  const r = parseInt(c.substring(0,2),16);
+  const g = parseInt(c.substring(2,4),16);
+  const b = parseInt(c.substring(4,6),16);
+  const yiq = ((r*299)+(g*587)+(b*114))/1000;
+  return (yiq >= 128) ? '#111' : '#ffffff';
+}
+
+let timerId = null;
+let step = 0;
+
+async function startFullscreen() {
+  if (!document.fullscreenElement) {
+    await document.documentElement.requestFullscreen();
+  }
+  fullscreenDisplay.style.display = 'flex';
+  document.getElementById('settingsPanel').style.display = 'none';
+  step = 0;
+  runSequence();
+  const interval = Math.max(0.05, parseFloat(intervalSecInput.value) || 3) * 1000;
+  timerId = setInterval(() => {
+    step++;
+    runSequence();
+  }, interval);
+}
+
+function runSequence() {
+  const colors = getActiveColors();
+  const numbers = getNumbersArray();
+  if (colors.length === 0 || numbers.length === 0) return;
+  const color = colors[step % colors.length];
+  let num;
+  if (modeSelect.value === 'random') {
+    num = numbers[Math.floor(Math.random() * numbers.length)];
+  } else {
+    num = numbers[step % numbers.length];
+  }
+  fullscreenDisplay.style.background = color;
+  fullscreenNumber.style.color = getContrastYIQ(color);
+  fullscreenNumber.textContent = num;
+}
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement) {
+    clearInterval(timerId);
+    fullscreenDisplay.style.display = 'none';
+    document.getElementById('settingsPanel').style.display = 'flex';
+  }
+});
+
+startBtn.addEventListener('click', startFullscreen);
+</script>
+</body>
+</html>
